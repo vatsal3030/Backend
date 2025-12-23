@@ -1,11 +1,10 @@
-// Prisma configuration for version 7+
-// Connection URLs are configured via environment variables
+// prisma.config.ts
+import "dotenv/config";
+import { defineConfig } from "prisma/config";
 
-export default {
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-      directUrl: process.env.DIRECT_URL,
-    },
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  datasource: {
+    url: process.env.DATABASE_URL!,
   },
-};
+});

@@ -1,30 +1,13 @@
-// import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import { Pool } from "pg";
+import { PrismaPg } from "@prisma/adapter-pg";
 
-// const prismaClientSingleton = () => {
-//   return new PrismaClient({
-//     log:
-//       process.env.NODE_ENV === "development"
-//         ? ["error", "warn", "info"]
-//         : ["error"],
-//   });
-// };
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-// const prisma = prismaClientSingleton();
+const adapter = new PrismaPg(pool);
 
-// export default prisma;
+const prisma = new PrismaClient({ adapter });
 
-// // Graceful shutdown
-// if (process.env.NODE_ENV !== "production") {
-//   global.prisma = prisma;
-// }
-
-// // Handle process termination
-// process.on("SIGINT", async () => {
-//   await prisma.$disconnect();
-//   process.exit(0);
-// });
-
-// process.on("SIGTERM", async () => {
-//   await prisma.$disconnect();
-//   process.exit(0);
-// });
+export default prisma;

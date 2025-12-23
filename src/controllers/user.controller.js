@@ -1,0 +1,213 @@
+import asyncHandler from "../utils/asyncHandler.js";
+import ApiError from "../utils/ApiError.js";
+import prisma from "../db/prisma.js";
+import uploadOnCloudinary from "../utils/cloudinary.js";
+import { createUserSchema } from "../schemas/CreateUserSchema.js";
+import { comparePassword, hashPassword } from "../utils/password.js";
+import ApiResponse from "../utils/ApiResponse.js";
+import { generateAccessToken } from "../utils/jwt.js";
+
+
+const generateAccessAndRefreshToken = async (userId) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: {
+                id: userId
+            }
+        })
+
+        const accessToken = generateAccessToken(user)
+        const refreshToken = generateRefreshToken(user)
+
+        user.refreshToken = refreshToken
+        await prisma.user.update({
+            where: {
+                id: userId
+            },
+            data: {
+                refreshToken: refreshToken
+            }
+        })
+
+        return { accessToken, refreshToken }
+
+    } catch (error) {
+        throw new ApiError(400, "Something went wrong while genrating refresh and access token")
+    }
+}
+
+
+const registerUser = asyncHandler(async (req, res) => {
+    // Validate request body
+    // get user details from frontend
+    // validation
+    // check if user exists
+    // check for images
+    // upload avatar to cloudinary
+    // encrypt password
+    // create user in DB
+    // remove password & refresh token
+    // return response
+
+
+    const parsed = createUserSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+        throw new ApiError(400, "Invalid input", parsed.error.flatten().fieldErrors);
+    }
+
+    const { fullName, email, username, password } = parsed.data;
+    // console.log({ fullName, email, username, password })
+
+    if ([fullName, email, username, password].some((field) =>
+        field?.trim().length === "")) {
+        throw new ApiError(400, "All fields are required")
+    }
+
+    // 3. check if user already exists
+    const existingUser = await prisma.user.findFirst({
+        where: {
+            OR: [{ email }, { username }],
+        },
+    });
+
+    if (existingUser) {
+        throw new ApiError(409, "User with given email or username already exists")
+    }
+
+    const avatarLocalPath = req.files?.avatar[0]?.path
+    // const coverImageLocalPath = req.files?.coverImage[0]?.path
+
+    let coverImageLocalPath;
+    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+        coverImageLocalPath = req.files.coverImage[0].path
+    }
+
+    if (!avatarLocalPath) {
+        throw new ApiError(400, "Avatar image is required(Local Path missing)")
+    }
+
+    const avatar = await uploadOnCloudinary(avatarLocalPath)
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+
+    if (!avatar) {
+        throw new ApiError(400, `Avatar image is required / cloudinary problem ${avatar} `)
+    }
+
+    const hashedPassword = await hashPassword(password)
+
+    const createdUser = await prisma.user.create({
+        data: {
+            fullName,
+            email,
+            username: username.toLowerCase(),
+            avatar: avatar.url,
+            coverImage: coverImage?.url || "",
+            password: hashedPassword,
+        },
+        select: {
+            id: true,
+            fullName: true,
+            email: true,
+            username: true,
+            avatar: true,
+            coverImage: true,
+            createdAt: true,
+        }
+    });
+
+    if (!createdUser) {
+        throw new ApiError(500, "Something went wrong while registering the user");
+    }
+
+    return res.status(201).json(
+        new ApiResponse(200, createdUser, "User registered Successfully")
+    );
+
+
+})
+
+const loginUser = asyncHandler(async (req, res) => {
+    //   req->body -> data
+    //   username or email based login
+    // find user
+    // password check
+    // accessToken and refreshToken
+    // send cookie 
+
+    const { email, username, password } = req.body
+
+    if (!username || !email) {
+        throw new ApiError(400, "username or email is required")
+    }
+
+    const user = await prisma.user.findUnique({
+        where: {
+            OR: [{ email }, { username }]
+        }
+    })
+
+    if (!user) {
+        throw new ApiError(404, "User not found")
+    }
+
+    const isPasswordValid = await comparePassword(password, user.password)
+
+    if (!isPasswordValid) {
+        throw new ApiError(401, "Invalid credentials")
+    }
+
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user.id)
+
+    const loggedInUser = await prisma.user.findUnique({
+        where: {
+            id: user.id,
+        },
+        select: {
+            id: true,
+            fullName: true,
+            email: true,
+            username: true,
+            avatar: true,
+            coverImage: true,
+            createdAt: true,
+        },
+    });
+
+
+    const options = {
+        httpOnly: true,
+        secure: true,
+    }
+
+    return res.
+        status(200).
+        cookie("accessToken", accessToken, options).
+        cookie("refreshToken", refreshToken, options).
+        json(
+            new ApiResponse
+                (
+                    200,
+                    { user: loggedInUser, refreshToken },
+                    "User Logged In Successfully"
+                )
+        )
+
+})
+
+const logOutUser = asyncHandler(async(req,res)=>{
+    
+})
+
+export default {
+    registerUser,
+    loginUser
+}
+
+
+
+
+
+
+
+

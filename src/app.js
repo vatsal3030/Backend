@@ -20,27 +20,15 @@ app.use(express.json(
 ));
 
 app.use(express.urlencoded({ extended: true, limit: "100kb" }));
-
 app.use(express.static("public"));
-
 app.use(cookieParser());
 
-// /* Routes */
-// app.get("/", (req, res) => {
-//   res.json({ message: "Hello World" });
-// });
+// routes
+import userRouter from "./routes/user.routes.js"
 
-// /* 404 Handler */
-// app.use((req, res) => {
-//   res.status(404).json({ error: "Route not found" });
-// });
 
-// /* Error Handler */
-// app.use((err, req, res, next) => {
-//   console.error(err.stack);
-//   res.status(err.statusCode || 500).json({
-//     error: err.message || "Internal Server Error",
-//   });
-// });
+// route declarations
+app.use("/api/v1/users",userRouter)
+
 
 export default app;
