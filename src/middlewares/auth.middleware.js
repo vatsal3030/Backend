@@ -3,7 +3,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import jwt from 'jsonwebtoken'
 import userSafeSelect from "../utils/userSafeSelect.js";
 import prisma from "../db/prisma.js";
-export const verifyJwt = asyncHandler(async (req, resizeBy, next) => {
+export const verifyJwt = asyncHandler(async (req, res, next) => {
     try {
         const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "")
         if (!token) throw new ApiError(401, "Unothorized request")

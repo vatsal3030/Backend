@@ -1,13 +1,14 @@
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiError from "../utils/ApiError.js";
 import prisma from "../db/prisma.js";
-import uploadOnCloudinary from "../utils/cloudinary.js";
+import uploadOnCloudinary, { deleteImageOnCloudinary } from "../utils/cloudinary.js";
 import { createUserSchema } from "../schemas/CreateUserSchema.js";
 import { comparePassword, hashPassword } from "../utils/password.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { generateAccessToken } from "../utils/jwt.js";
 import { generateRefreshToken } from "../utils/jwt.js";
 import jwt from 'jsonwebtoken'
+import userSafeSelect from '../utils/userSafeSelect.js'
 
 export const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -103,7 +104,9 @@ export const registerUser = asyncHandler(async (req, res) => {
             email,
             username: username.toLowerCase(),
             avatar: avatar.url,
+            avatarPublicId: avatar.public_id,
             coverImage: coverImage?.url || "",
+            coverImagePublicId: coverImage?.public_id || "",
             password: hashedPassword,
         },
         select: {
@@ -229,22 +232,22 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 
     try {
         const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET)
-    
+
         const user = await prisma.user.findUnique({
             where: { id: decodedToken?.id }
         })
-    
+
         if (!user) throw new ApiError(401, "Invalid refresh token")
-    
+
         if (incomingRefreshToken !== user.refreshToken) throw new ApiError(401, "Refresh token is expired or used")
-    
+
         const options = {
             httpOnly: true,
             secure: true,
         }
-    
+
         const { accessToken, newRefreshToken } = await generateAccessAndRefreshToken(user.id)
-    
+
         return res.
             status(200).
             cookie("accessToken", accessToken, options).
@@ -261,10 +264,288 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 
 })
 
+export const chageCurrentPassword = asyncHandler(async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+
+    // 1. Get user with password
+    const user = await prisma.user.findUnique({
+        where: {
+            id: req.user?.id,
+        },
+        select: {
+            id: true,
+            password: true,
+        },
+    });
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    // 2. Check old password
+    const isPasswordCorrect = await comparePassword(
+        oldPassword,
+        user.password
+    );
+
+    if (!isPasswordCorrect) {
+        throw new ApiError(401, "Invalid old password");
+    }
+
+    // 3. Hash new password
+    const newHashedPassword = await hashPassword(newPassword);
+
+    // 4. Update DB
+    await prisma.user.update({
+        where: {
+            id: user.id,
+        },
+        data: {
+            password: newHashedPassword,
+        },
+    });
+
+    return res.
+        status(200).
+        json(
+            new ApiResponse(200, {}, "Password updated successfully")
+        );
+
+})
+
+export const getCurrentUser = asyncHandler(async (req, res) => {
+    return res.
+        status(200).
+        json(200, req.user, "current user fetched successfully")
+
+})
+
+export const updateAccountDetails = asyncHandler(async (req, res) => {
+    const { fullName, email } = req.body;
+
+    if (!fullName || !email) {
+        throw new ApiError(400, "Full name and email are required");
+    }
+
+    try {
+        const updatedUser = await prisma.user.update({
+            where: {
+                id: req.user.id,
+            },
+            data: {
+                fullName,
+                email,
+            },
+            select: {
+                id: true,
+                fullName: true,
+                email: true,
+                username: true,
+                avatar: true,
+                coverImage: true,
+                updatedAt: true,
+            },
+        });
+
+        return res.
+            status(200).
+            json(
+                new ApiResponse(
+                    200,
+                    updatedUser,
+                    "Account details updated successfully"
+                )
+            );
+    } catch (error) {
+        // Unique email constraint error
+        if (error.code === "P2002") {
+            throw new ApiError(409, "Email is already in use");
+        }
+        throw new ApiError(409, error, "failed to update account details");
+    }
+})
+
+export const updateUserAvatar = asyncHandler(async (req, res) => {
+    const avatarLocalPath = req.file?.path;
+
+    if (!avatarLocalPath) {
+        throw new ApiError(400, "Avatar file is missing");
+    }
+
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+
+    if (!avatar || !avatar.url) {
+        throw new ApiError(
+            400,
+            "Error while uploading avatar file to Cloudinary"
+        );
+    }
 
 
+    if (req.user.avatarPublicId) {
+        await deleteImageOnCloudinary(req.user.avatarPublicId);
+    }
+
+    const updatedUser = await prisma.user.update({
+        where: {
+            id: req.user.id,
+        },
+        data: {
+            avatar: avatar.url,
+            avatarPublicId: avatar.public_id,
+        },
+        select: userSafeSelect, // safe fields only
+    });
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            updatedUser,
+            "Avatar updated successfully"
+        )
+    );
+});
+
+export const updateUserCoverImage = asyncHandler(async (req, res) => {
+    const coverImageLocalPath = req.file?.path;
+
+    if (!coverImageLocalPath) {
+        throw new ApiError(400, "coverImage file is missing");
+    }
+
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+
+    if (!coverImage || !coverImage.url) {
+        throw new ApiError(
+            400,
+            "Error while uploading cover Image file to Cloudinary"
+        );
+    }
+
+    if (req.user.coverImagePublicId) {
+        await deleteImageOnCloudinary(req.user.coverImagePublicId);
+    }
+
+    const updatedUser = await prisma.user.update({
+        where: {
+            id: req.user.id,
+        },
+        data: {
+            coverImage: coverImage.url,
+            coverImagePublicId: coverImage.public_id,
+        },
+        select: userSafeSelect, // safe fields only
+    });
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            updatedUser,
+            "coverImage updated successfully"
+        )
+    );
+});
 
 
+export const getUserChannelProfile = asyncHandler(async (req, res) => {
+    const channel = await prisma.user.findUnique({
+        where: { username: username.toLowerCase() },
+        select: {
+            id: true,
+            fullName: true,
+            username: true,
+            avatar: true,
+            coverImage: true,
+            email: true,
+        },
+    });
+
+    if (!channel) {
+        throw new ApiError(404, "channel does not exist");
+    }
+
+    const [
+        subscribersCount,
+        channelsSubscribedToCount,
+        isSubscribed,
+    ] = await Promise.all([
+        prisma.subscription.count({
+            where: { channelId: channel.id },
+        }),
+
+        prisma.subscription.count({
+            where: { subscriberId: channel.id },
+        }),
+
+        req.user?.id
+            ? prisma.subscription.findUnique({
+                where: {
+                    subscriberId_channelId: {
+                        subscriberId: req.user.id,
+                        channelId: channel.id,
+                    },
+                },
+            })
+            : null,
+    ]);
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                ...channel,
+                subscribersCount,
+                channelsSubscribedToCount,
+                isSubscribed: Boolean(isSubscribed),
+            },
+            "User channel fetched successfully"
+        )
+    );
+})
+
+const getWatchHistory = asyncHandler(async (req, res) => {
+    const userId = req.user?.id
+    if (!userId) throw new ApiError(404, "User not found")
+
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+            watchHistory: {
+                orderBy: {
+                    createdAt: "desc" // optional: latest watched first
+                },
+                select: {
+                    id: true,
+                    title: true,
+                    description: true,
+                    thumbnail: true,
+                    duration: true,
+                    views: true,
+                    createdAt: true,
+                    owner: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            username: true,
+                            avatar: true
+                        }
+                    }
+                }
+            }
+        }
+    })
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            user?.watchHistory || [] ,
+            "watchHistory fetched successfully"
+
+        )
+    )
+})
 
 
 
