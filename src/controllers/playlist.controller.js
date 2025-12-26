@@ -1,7 +1,7 @@
+import prisma from "../db/prisma.js"
+import ApiError from "../utils/ApiError.js"
+import ApiResponse from "../utils/ApiResponse.js"
 import asyncHandler from "../utils/asyncHandler.js"
-import prisma from "../db/prisma.js";
-import ApiError from "../utils/ApiError";
-import ApiResponse from "../utils/ApiResponse";
 
 export const createPlaylist = asyncHandler(async (req, res) => {
     const { name, description, isPublic = false } = req.body

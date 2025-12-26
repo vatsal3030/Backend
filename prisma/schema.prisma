@@ -94,6 +94,8 @@ model Comment {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  tweet     Tweet?   @relation(fields: [tweetId], references: [id])
+  tweetId   String?
 
   @@index([videoId])
   @@index([ownerId])
@@ -125,10 +127,16 @@ model Tweet {
   id      String @id @default(uuid())
   content String
 
+  image   String? // optional image (Cloudinary URL)
+  imageId String? // Cloudinary public_id (for deletion)
+
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
-  likes Like[]
+  likes    Like[]
+  comments Comment[]
+
+  isDeleted Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -142,8 +150,8 @@ model Playlist {
   description String
   isPublic    Boolean @default(false)
 
-  ownerId     String
-  owner       User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   videos Video[] @relation("PlaylistVideos")
 
