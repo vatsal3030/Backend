@@ -12,7 +12,6 @@ export const getAllVideos = asyncHandler(async (req, res) => {
         query = "",
         sortBy = "createdAt",
         sortType = "desc",
-        userId
     } = req.query;    //TODO: get all videos based on query, sort, pagination
 
     page = Number(page)
@@ -28,6 +27,9 @@ export const getAllVideos = asyncHandler(async (req, res) => {
     const whereClause = {
         isPublished: true
     };
+
+    const userId = req.user?.id
+    if (!userId) throw new ApiError(401, "Unauthorized");
 
     if (userId) {
         whereClause.ownerId = userId;
