@@ -9,13 +9,19 @@ import {
     getDeletedTweets
 } from "../controllers/tweet.controller.js";
 import { verifyJwt } from "../middlewares/auth.middleware.js";
+import { upload } from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
 router.use(verifyJwt);
 
 // Create tweet
-router.route("/").post(createTweet);
+router.route("/").post(upload.fields([
+        {
+            name: "tweetImage",
+            maxCount: 1
+        }
+    ]),createTweet);
 
 // Get tweets of a user
 router.route("/user/:userId").get(getUserTweets);

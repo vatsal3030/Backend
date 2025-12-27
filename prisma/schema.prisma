@@ -25,10 +25,11 @@ model User {
   avatarPublicId     String?
   coverImagePublicId String?
 
-  subscribers   Subscription[] @relation("UserSubscribers")
-  subscriptions Subscription[] @relation("UserSubscriptions")
-  videos        Video[]        @relation("VideoOwner")
-  watchHistory  Video[]        @relation("WatchHistory")
+  subscribers           Subscription[] @relation("UserSubscribers")
+  subscriptions         Subscription[] @relation("UserSubscriptions")
+  videos                Video[]        @relation("VideoOwner")
+  watchHistory          Video[]        @relation("WatchHistory")
+  notificationsReceived Notification[] @relation("NotificationReceiver")
 
   comments  Comment[]
   likes     Like[]
@@ -37,6 +38,23 @@ model User {
 
   @@index([username])
   @@index([email])
+}
+
+model Tag {
+  id   String @id @default(uuid())
+  name String @unique
+
+  videos VideoTag[]
+}
+
+model VideoTag {
+  videoId String
+  tagId   String
+
+  video Video @relation(fields: [videoId], references: [id])
+  tag   Tag   @relation(fields: [tagId], references: [id])
+
+  @@id([videoId, tagId])
 }
 
 model Video {
@@ -49,8 +67,15 @@ model Video {
   views       Int     @default(0)
   isPublished Boolean @default(true)
 
+  isShort     Boolean @default(false)
+  aspectRatio String? // "9:16" or "16:9"
+
+  summary String? // AI-generated summary
+
   ownerId String
   owner   User   @relation("VideoOwner", fields: [ownerId], references: [id])
+
+  tags VideoTag[] // ✅ ADD THIS
 
   watchedBy User[]     @relation("WatchHistory")
   comments  Comment[]
@@ -159,6 +184,22 @@ model Playlist {
   updatedAt DateTime @updatedAt
 
   @@index([ownerId])
+}
+
+model Notification {
+  id String @id @default(uuid())
+
+  userId  String // receiver
+  videoId String // reference only (no relation)
+
+  isRead    Boolean  @default(false)
+  notifyAll Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user User @relation("NotificationReceiver", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([videoId])
 }
 
 enum AuthProvider {

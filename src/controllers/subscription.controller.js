@@ -195,3 +195,94 @@ export const getSubscribedChannels = asyncHandler(async (req, res) => {
         )
     );
 });
+
+export const getSubscribedVideos = asyncHandler(async (req, res) => {
+    const userId = req.user?.id;
+
+    if (!userId) {
+        throw new ApiError(401, "Unauthorized");
+    }
+
+    let { page = "1", limit = "10" } = req.query;
+
+    page = Number(page);
+    limit = Number(limit);
+
+    if (isNaN(page) || page < 1) page = 1;
+    if (isNaN(limit) || limit < 1 || limit > 50) limit = 10;
+
+    const skip = (page - 1) * limit;
+
+    // 1️⃣ Get all subscribed channels
+    const subscriptions = await prisma.subscription.findMany({
+        where: { subscriberId: userId },
+        select: { channelId: true }
+    });
+
+    const channelIds = subscriptions.map(sub => sub.channelId);
+
+    if (channelIds.length === 0) {
+        return res.status(200).json(
+            new ApiResponse(200, {
+                videos: [],
+                pagination: {
+                    currentPage: page,
+                    totalPages: 0,
+                    totalVideos: 0
+                }
+            }, "No subscribed channels")
+        );
+    }
+
+    // 2️⃣ Fetch videos from subscribed channels
+    const videos = await prisma.video.findMany({
+        where: {
+            ownerId: { in: channelIds },
+            isPublished: true
+        },
+        orderBy: {
+            createdAt: "desc"
+        },
+        skip,
+        take: limit,
+        select: {
+            id: true,
+            title: true,
+            thumbnail: true,
+            views: true,
+            duration: true,
+            createdAt: true,
+            owner: {
+                select: {
+                    id: true,
+                    username: true,
+                    avatar: true
+                }
+            }
+        }
+    });
+
+    const totalVideos = await prisma.video.count({
+        where: {
+            ownerId: { in: channelIds },
+            isPublished: true
+        }
+    });
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                videos,
+                pagination: {
+                    currentPage: page,
+                    totalPages: Math.ceil(totalVideos / limit),
+                    totalVideos
+                }
+            },
+            "Subscribed videos fetched successfully"
+        )
+    );
+});
+
+

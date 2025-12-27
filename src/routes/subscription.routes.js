@@ -3,6 +3,7 @@ import {
     getSubscribedChannels,
     getSubscriberCount,
     toggleSubscription,
+    getSubscribedVideos
 } from "../controllers/subscription.controller.js";
 import { verifyJwt } from "../middlewares/auth.middleware.js";
 
@@ -11,9 +12,11 @@ const router = Router();
 // 🔐 Protected routes
 router.use(verifyJwt);
 
+router.get("/", getSubscribedVideos);
+
 // Subscribe / Unsubscribe a channel
 router
-    .route("/c/:channelId")
+    .route("/c/:channelId/subscribe")
     .post(toggleSubscription);
 
 // Get subscriber count of a channel (public-style but auth kept simple)
@@ -25,5 +28,6 @@ router
 router
     .route("/u/subscriptions")
     .get(getSubscribedChannels);
+
 
 export default router;

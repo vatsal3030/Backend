@@ -39,7 +39,7 @@ export const toggleVideoLike = asyncHandler(async (req, res) => {
     const existingLike = await prisma.like.findUnique({
         where: {
             likedById_videoId: {
-                likedById: userId,
+                likedById: req.user.id,
                 videoId: videoId
             }
         }
@@ -60,7 +60,7 @@ export const toggleVideoLike = asyncHandler(async (req, res) => {
 
     await prisma.like.create({
         data: {
-            likedBy: userId,
+            likedById: req.user.id,
             videoId: videoId
         }
     })
@@ -97,7 +97,7 @@ export const toggleCommentLike = asyncHandler(async (req, res) => {
     const existingLike = await prisma.like.findUnique({
         where: {
             likedById_commentId: {
-                likedById: userId,
+                likedById: req.user.id,
                 commentId: commentId,
             },
         },
@@ -116,7 +116,7 @@ export const toggleCommentLike = asyncHandler(async (req, res) => {
 
     await prisma.like.create({
         data: {
-            likedById: userId,
+            likedById: req.user.id,
             commentId: commentId,
         },
     });
@@ -152,7 +152,7 @@ export const toggleTweetLike = asyncHandler(async (req, res) => {
     const existingLike = await prisma.like.findUnique({
         where: {
             likedById_tweetId: {
-                likedById: userId,
+                likedById: req.user.id,
                 tweetId: tweetId,
             },
         },
@@ -171,7 +171,7 @@ export const toggleTweetLike = asyncHandler(async (req, res) => {
 
     await prisma.like.create({
         data: {
-            likedById: userId,
+            likedById: req.user.id,
             tweetId: tweetId,
         },
     });
@@ -206,7 +206,7 @@ export const getLikedVideos = asyncHandler(async (req, res) => {
     // ✅ Fetch liked videos (via likes table)
     const likedVideoLikes = await prisma.like.findMany({
         where: {
-            likedById: userId,
+            likedById: req.user.id,
             videoId: {
                 not: null, // ✅ only video likes
             },
@@ -246,7 +246,7 @@ export const getLikedVideos = asyncHandler(async (req, res) => {
     // ✅ Total count (for pagination)
     const totalLikedVideos = await prisma.like.count({
         where: {
-            likedById: userId,
+            likedById: req.user.id,
             videoId: {
                 not: null,
             },
